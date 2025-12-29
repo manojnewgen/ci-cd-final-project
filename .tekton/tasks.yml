@@ -1,0 +1,48 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: lint-task
+spec:
+  steps:
+    - name: lint
+      image: node:18
+      script: |
+        npm install
+        npm run lint
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: test-task
+spec:
+  steps:
+    - name: test
+      image: node:18
+      script: |
+        npm install
+        npm test
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: build-task
+spec:
+  steps:
+    - name: build-image
+      image: quay.io/buildah/stable
+      securityContext:
+        privileged: true
+      script: |
+        buildah bud -t counter-service:latest .
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: deploy-task
+spec:
+  steps:
+    - name: deploy
+      image: bitnami/kubectl
+      script: |
+        kubectl apply -f k8s/deployment.yaml
+        kubectl apply -f k8s/service.yaml
