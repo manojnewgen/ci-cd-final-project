@@ -5,10 +5,11 @@ metadata:
 spec:
   steps:
     - name: lint
-      image: node:18
+      image: python:3.9-slim
       script: |
-        npm install
-        npm run lint
+        python -m pip install --upgrade pip
+        pip install flake8
+        flake8 service
 ---
 apiVersion: tekton.dev/v1beta1
 kind: Task
@@ -17,10 +18,12 @@ metadata:
 spec:
   steps:
     - name: test
-      image: node:18
+      image: python:3.9-slim
       script: |
-        npm install
-        npm test
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest
+        pytest
 ---
 apiVersion: tekton.dev/v1beta1
 kind: Task
@@ -42,7 +45,33 @@ metadata:
 spec:
   steps:
     - name: deploy
-      image: bitnami/kubectl
+      image: bitnami/kubectl:latest
       script: |
         kubectl apply -f k8s/deployment.yaml
         kubectl apply -f k8s/service.yaml
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: cleanup-task
+spec:
+  workspaces:
+    - name: source
+  steps:
+    - name: cleanup
+      image: alpine:3
+      env:
+        - name: WORKSPACE_SOURCE_PATH
+          value: $(workspaces.source.path)
+      workingDir: $(workspaces.source.path)
+      securityContext:
+        runAsUser: 0
+      script: |
+        set -eu
+        echo "Removing all files from ${WORKSPACE_SOURCE_PATH} ..."
+
+        if [ -d "${WORKSPACE_SOURCE_PATH}" ]; then
+          rm -rf "${WORKSPACE_SOURCE_PATH:?}"/*
+          rm -rf "${WORKSPACE_SOURCE_PATH}"/.[!.]*
+          rm -rf "${WORKSPACE_SOURCE_PATH}"/..?*
+        fi
